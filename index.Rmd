@@ -28,20 +28,37 @@ When used with numeric functions, TRUE is converted to 1 and FALSE to 0.
 flights
 ```
 
+```{r}
+opss <- c("dep_time", "dep_delay", "arr_time", "arr_delay")
+select(flights, dep_time, dep_delay, arr_time, arr_delay)
+select(flights, starts_with("dep"), starts_with("arr"))
+select(flights, one_of(opss))
+select(flights, matches("^dep|^arr"))
+select(flights, matches("time$|delay$"), -contains("sched"), -contains("air"))
+```
 
 Consider the following scenarios:
 
   - A flight is 15 minutes early 50% of the time, and 15 minutes late 50% of the time.
 
 ```{r}
-
+flights %>%
+  group_by(flight) %>%
+  summarise(n = n(),
+            early = mean(arr_delay == -15, na.rm = T),
+            late = mean(arr_delay == 15, na.rm = T)) %>% 
+  filter(early == 0.5, late == 0.5)
 ```
 
 
   - A flight is always 10 minutes late.
 
 ```{r}
-
+flights %>%
+  group_by(flight) %>%
+  summarise(n = n(),
+            lates = mean(arr_delay == 10, na.rm = T))%>% 
+  filter(lates == 1)
 ```
 
   - A flight is 30 minutes early 50% of the time, and 30 minutes late 50% of the time.
@@ -49,18 +66,61 @@ Consider the following scenarios:
   - 99% of the time a flight is on time. 1% of the time it’s 2 hours late.
 
 ```{r}
+flights %>%
+  group_by(flight) %>%
+  summarise(n = n(),
+            thirty_early = mean(arr_delay == -30, na.rm = T),
+            thirty_late = mean(arr_delay == 30, na.rm = T)) %>%
+  filter(thirty_early == 0.5 & thirty_late == 0.5)
 
+flights %>%
+  group_by(flight) %>%
+  summarise(n = n(),
+            percentage_on_time = mean(arr_delay == 0, na.rm = T),
+            two_hours = mean(arr_delay > 120, na.rm = T)) %>%
+  filter(percentage_on_time == 0.99 & two_hours == 0.01)
 ```
 
 
   - Which is more important: arrival delay or departure delay?
+  
+  arrival
 
 2. Come up with another approach that will give you the same output as not_cancelled %>% count(dest) and not_cancelled %>% count(tailnum, wt = distance) (without using count()).
+```{r}
+not_cancelled <- flights %>% 
+        filter(!is.na(dep_time))
+not_cancelled %>% 
+  group_by(dest) %>% 
+  summarise(n = n())
+not_cancelled %>% 
+  group_by(tailnum) %>% 
+  summarise(n = sum(distance))
+```
 
 3. Our definition of cancelled flights (is.na(dep_delay) | is.na(arr_delay) ) is slightly suboptimal. Why? Which is the most important column?
 
+Because if a flight didn't leave then it was cancelled.
+
 4. Look at the number of cancelled flights per day. Is there a pattern? Is the proportion of cancelled flights related to the average delay?
-
+```{r}
+flights %>%
+  group_by(day) %>%
+  summarise(cancelled = mean(is.na(dep_delay)),
+            mean_dep = mean(dep_delay, na.rm = T),
+            mean_arr = mean(arr_delay, na.rm = T)) %>%
+  ggplot(aes(y = cancelled)) +
+  geom_point(aes(x = mean_dep), colour = "red") +
+  geom_point(aes(x = mean_arr), colour = "blue") +
+  labs(x = "Average delay per day", y = "Cancelled flights per day")
+```
 5. Which carrier has the worst delays? Challenge: can you disentangle the effects of bad airports vs. bad carriers? Why/why not? (Hint: think about flights %>% group_by(carrier, dest) %>% summarise(n()))
-
+```{r}
+flights %>%
+    filter(arr_delay > 0) %>%
+    group_by(carrier) %>%
+    summarise(average_arr_delay = mean(arr_delay, na.rm=TRUE)) %>%
+    arrange(desc(average_arr_delay))
+```
 6. What does the sort argument to count() do. When might you use it?
+When you sort the cases based on the count
